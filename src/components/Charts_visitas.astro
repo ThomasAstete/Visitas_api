@@ -1,0 +1,27 @@
+---
+import { onMount } from 'astro/client';
+import Chart from 'chart.js/auto';
+
+const response = await fetch('https://visitas-empresa.onrender.com/api/visitas/');
+const data = await response.json();
+
+<canvas id="visitsChart"></canvas>
+
+<script>
+    import Chart from 'chart.js/auto';
+
+    onMount(() => {
+        const ctx = document.getElementById("visitsChart");
+        new Chart(ctx, {
+            type: "line",
+            data: {
+                labels: Astro.props.labels,
+                datasets: [{
+                    label: "Visitas",
+                    data: Astro.props.counts,
+                    borderWidth: 2
+                }]
+            }
+        });
+    });
+</script>

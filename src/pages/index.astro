@@ -1,16 +1,90 @@
 ---
+import { onMount } from 'astro/client';
+import Chart from 'chart.js/auto';
 
+// Consumimos tu API REAL
+const res = await fetch("https://visitas-empresa.onrender.com/api/visitas");
+const visitas = await res.json();
+
+// Separamos activas y finalizadas:
+const visitas_activas = visitas.filter(v => !v.hora_salida);
+const visitas_finalizadas = visitas.filter(v => v.hora_salida);
+
+// Gráfico: visitas por fecha
+const fechas = {};
+for (const v of visitas) {
+  const fecha = new Date(v.hora_entrada).toLocaleDateString();
+  fechas[fecha] = (fechas[fecha] || 0) + 1;
+}
+
+const labels = Object.keys(fechas);
+const counts = Object.values(fechas);
 ---
 
-<html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-		<meta name="viewport" content="width=device-width" />
-		<meta name="generator" content={Astro.generator} />
-		<title>Astro</title>
-	</head>
-	<body>
-		<h1>Astro</h1>
-	</body>
+<html lang="es">
+  <body>
+    <h1>Panel de Visitas</h1>
+
+    <!-- Gráfico -->
+    <section>
+      <h2>Visitas por día</h2>
+      <canvas id="chart"></canvas>
+    </section>
+
+    <!-- Visitas Activas -->
+    <section>
+      <h2>Visitas Activas</h2>
+
+      {visitas_activas.length === 0 && <p>No hay visitas activas.</p>}
+
+      <ul>
+        {visitas_activas.map(v => (
+          <li>
+            <strong>{v.nombre}</strong> — Llegó: {v.hora_entrada}
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- Visitas Finalizadas -->
+    <section>
+      <h2>Visitas Finalizadas</h2>
+
+      <ul>
+        {visitas_finalizadas.map(v => (
+          <li>
+            <strong>{v.nombre}</strong> — Entrada: {v.hora_entrada} — Salida: {v.hora_salida}
+          </li>
+        ))}
+      </ul>
+    </section>
+
+    <!-- Script del Gráfico -->
+    <script>
+
+	// Si no está logueado, enviarlo al login
+		if (!localStorage.getItem("access")) {
+    	window.location.href = "/login";
+  }
+
+      import Chart from 'chart.js/auto';
+      import { onMount } from 'astro/client';
+
+      onMount(() => {
+        const ctx = document.getElementById("chart");
+
+        new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels: JSON.parse(String.raw`${JSON.stringify(labels)}`),
+            datasets: [{
+              label: "Visitas por día",
+              data: JSON.parse(String.raw`${JSON.stringify(counts)}`),
+              borderWidth: 1
+            }]
+          }
+        });
+      });
+    </script>
+  </body>
 </html>

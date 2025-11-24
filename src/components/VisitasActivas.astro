@@ -1,0 +1,13 @@
+---
+const response = await fetch(https://visitas-empresa.onrender.com/api/visitas/");
+const activas = await response.json();
+---
+
+<h2>Visitas Activas</h2>
+<ul>
+    {activas.map(v => (
+        <li>
+            <strong>{v.nombre}</strong> — Llegó: {v.hora_entrada}
+        </li>
+    ))}
+</ul>

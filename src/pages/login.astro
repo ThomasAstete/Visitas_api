@@ -1,0 +1,82 @@
+---
+const API_LOGIN = "https://visitas-empresa.onrender.com/api/token/";
+---
+
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Login</title>
+
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        height: 100vh;
+        background: #f3f4f6;
+      }
+      .card {
+        background: white;
+        padding: 2rem;
+        border-radius: 10px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.15);
+        width: 300px;
+      }
+      input {
+        width: 100%;
+        padding: 0.7rem;
+        margin-bottom: 1rem;
+      }
+      button {
+        width: 100%;
+        padding: 0.7rem;
+        background: #3b82f6;
+        color: white;
+        border: none;
+        border-radius: 5px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="card">
+      <h2>Ingresar</h2>
+      <form id="loginForm">
+        <input id="username" type="text" placeholder="Usuario" required />
+        <input id="password" type="password" placeholder="Contraseña" required />
+        <button>Entrar</button>
+      </form>
+      <p id="msg"></p>
+    </div>
+
+    <script>
+      document.getElementById("loginForm").addEventListener("submit", async (e) => {
+        e.preventDefault();
+
+        const username = document.getElementById("username").value;
+        const password = document.getElementById("password").value;
+
+        const res = await fetch("https://visitas-empresa.onrender.com/api/token/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password })
+        });
+
+        if (!res.ok) {
+          document.getElementById("msg").innerText = "Credenciales incorrectas";
+          return;
+        }
+
+        const data = await res.json();
+
+        // Guardar tokens
+        localStorage.setItem("access", data.access);
+        localStorage.setItem("refresh", data.refresh);
+
+        // Ir al dashboard
+        window.location.href = "/";
+      });
+    </script>
+  </body>
+</html>
