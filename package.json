@@ -10,7 +10,7 @@
     "start": "node ./dist/server/entry.mjs"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "heroku-postbuild": "npm run build",
   "dependencies": {
