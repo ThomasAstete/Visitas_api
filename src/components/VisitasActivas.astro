@@ -4,10 +4,48 @@ const activas = await response.json();
 ---
 
 <h2>Visitas Activas</h2>
-<ul>
-    {activas.map(v => (
-        <li>
-            <strong>{v.nombre}</strong> — Llegó: {v.hora_entrada}
-        </li>
-    ))}
-</ul>
+---
+---
+
+<div id="visitas-activas">
+    <h2>Visitas Activas</h2>
+    <div id="activasList">Cargando...</div>
+</div>
+
+<script type="module">
+    const API_BASE = 'https://visitas-empresa.onrender.com';
+
+    function getTokens() { return { access: localStorage.getItem('access'), refresh: localStorage.getItem('refresh') }; }
+    async function refreshAccess() {
+        const tokens = getTokens();
+        if (!tokens.refresh) return false;
+        const res = await fetch(`${API_BASE}/api/token/refresh/`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refresh: tokens.refresh }) });
+        if (!res.ok) return false;
+        const data = await res.json();
+        localStorage.setItem('access', data.access);
+        return true;
+    }
+    async function authFetch(url, opts = {}) {
+        const tokens = getTokens();
+        if (!tokens.access) return;
+        opts.headers = opts.headers || {}; opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json'; opts.headers['Authorization'] = `Bearer ${tokens.access}`;
+        let res = await fetch(url, opts);
+        if (res.status === 401) {
+            const refreshed = await refreshAccess();
+            if (!refreshed) { window.location.href = '/login'; return; }
+            opts.headers['Authorization'] = `Bearer ${localStorage.getItem('access')}`;
+            res = await fetch(url, opts);
+        }
+        return res;
+    }
+
+    (async function () {
+        if (!localStorage.getItem('access')) return window.location.href = '/login';
+        const res = await authFetch(`${API_BASE}/api/visitas/`);
+        if (!res || !res.ok) return document.getElementById('activasList').innerText = 'Error cargando';
+        const visitas = await res.json();
+        const activas = visitas.filter(v => !v.hora_salida);
+        const html = activas.length === 0 ? '<p>No hay visitas activas.</p>' : '<ul>' + activas.map(v => `<li><strong>${v.nombre}</strong> — Llegó: ${v.hora_entrada}</li>`).join('') + '</ul>';
+        document.getElementById('activasList').innerHTML = html;
+    })();
+</script>

@@ -1,27 +1,16 @@
 ---
-import { onMount } from 'astro/client';
-import Chart from 'chart.js/auto';
-
-// Consumimos tu API REAL
-const res = await fetch("https://visitas-empresa.onrender.com/api/visitas");
-const visitas = await res.json();
-
-// Separamos activas y finalizadas:
-const visitas_activas = visitas.filter(v => !v.hora_salida);
-const visitas_finalizadas = visitas.filter(v => v.hora_salida);
-
-// Gráfico: visitas por fecha
-const fechas = {};
-for (const v of visitas) {
-  const fecha = new Date(v.hora_entrada).toLocaleDateString();
-  fechas[fecha] = (fechas[fecha] || 0) + 1;
-}
-
-const labels = Object.keys(fechas);
-const counts = Object.values(fechas);
 ---
 
 <html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <title>Panel de Visitas</title>
+    <style>
+      body { font-family: sans-serif; padding: 1rem; }
+      section { margin-bottom: 1.25rem; }
+      canvas { max-width: 800px; }
+    </style>
+  </head>
   <body>
     <h1>Panel de Visitas</h1>
 
@@ -34,57 +23,114 @@ const counts = Object.values(fechas);
     <!-- Visitas Activas -->
     <section>
       <h2>Visitas Activas</h2>
-
-      {visitas_activas.length === 0 && <p>No hay visitas activas.</p>}
-
-      <ul>
-        {visitas_activas.map(v => (
-          <li>
-            <strong>{v.nombre}</strong> — Llegó: {v.hora_entrada}
-          </li>
-        ))}
-      </ul>
+      <div id="activasContainer">Cargando...</div>
     </section>
 
     <!-- Visitas Finalizadas -->
     <section>
       <h2>Visitas Finalizadas</h2>
-
-      <ul>
-        {visitas_finalizadas.map(v => (
-          <li>
-            <strong>{v.nombre}</strong> — Entrada: {v.hora_entrada} — Salida: {v.hora_salida}
-          </li>
-        ))}
-      </ul>
+      <div id="finalizadasContainer">Cargando...</div>
     </section>
 
-    <!-- Script del Gráfico -->
-    <script>
-
-	// Si no está logueado, enviarlo al login
-		if (!localStorage.getItem("access")) {
-    	window.location.href = "/login";
-  }
-
+    <script type="module">
       import Chart from 'chart.js/auto';
-      import { onMount } from 'astro/client';
 
-      onMount(() => {
-        const ctx = document.getElementById("chart");
+      const API_BASE = 'https://visitas-empresa.onrender.com';
 
+      function getTokens() {
+        return {
+          access: localStorage.getItem('access'),
+          refresh: localStorage.getItem('refresh')
+        };
+      }
+
+      async function refreshAccess() {
+        const tokens = getTokens();
+        if (!tokens.refresh) return false;
+
+        const res = await fetch(`${API_BASE}/api/token/refresh/`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh: tokens.refresh })
+        });
+
+        if (!res.ok) return false;
+        const data = await res.json();
+        localStorage.setItem('access', data.access);
+        return true;
+      }
+
+      async function authFetch(url, opts = {}) {
+        const tokens = getTokens();
+        if (!tokens.access) {
+          window.location.href = '/login';
+          return;
+        }
+
+        opts.headers = opts.headers || {};
+        opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+        opts.headers['Authorization'] = `Bearer ${tokens.access}`;
+
+        let res = await fetch(url, opts);
+        if (res.status === 401) {
+          const refreshed = await refreshAccess();
+          if (!refreshed) {
+            // no se pudo refrescar -> volver a login
+            window.location.href = '/login';
+            return;
+          }
+          // reintentar con nuevo access
+          const newAccess = localStorage.getItem('access');
+          opts.headers['Authorization'] = `Bearer ${newAccess}`;
+          res = await fetch(url, opts);
+        }
+
+        return res;
+      }
+
+      async function loadDataAndRender() {
+        const res = await authFetch(`${API_BASE}/api/visitas/`);
+        if (!res || !res.ok) return;
+        const visitas = await res.json();
+
+        const visitas_activas = visitas.filter(v => !v.hora_salida);
+        const visitas_finalizadas = visitas.filter(v => v.hora_salida);
+
+        // Render listas
+        const actContainer = document.getElementById('activasContainer');
+        if (visitas_activas.length === 0) actContainer.innerHTML = '<p>No hay visitas activas.</p>';
+        else actContainer.innerHTML = '<ul>' + visitas_activas.map(v => `<li><strong>${v.nombre}</strong> — Llegó: ${v.hora_entrada}</li>`).join('') + '</ul>';
+
+        const finContainer = document.getElementById('finalizadasContainer');
+        if (visitas_finalizadas.length === 0) finContainer.innerHTML = '<p>No hay visitas finalizadas.</p>';
+        else finContainer.innerHTML = '<ul>' + visitas_finalizadas.map(v => `<li><strong>${v.nombre}</strong> — Entrada: ${v.hora_entrada} — Salida: ${v.hora_salida}</li>`).join('') + '</ul>';
+
+        // Gráfico
+        const fechas = {};
+        for (const v of visitas) {
+          const fecha = new Date(v.hora_entrada).toLocaleDateString();
+          fechas[fecha] = (fechas[fecha] || 0) + 1;
+        }
+
+        const labels = Object.keys(fechas);
+        const counts = Object.values(fechas);
+
+        const ctx = document.getElementById('chart');
         new Chart(ctx, {
-          type: "bar",
+          type: 'bar',
           data: {
-            labels: JSON.parse(String.raw`${JSON.stringify(labels)}`),
-            datasets: [{
-              label: "Visitas por día",
-              data: JSON.parse(String.raw`${JSON.stringify(counts)}`),
-              borderWidth: 1
-            }]
+            labels,
+            datasets: [{ label: 'Visitas por día', data: counts, borderWidth: 1 }]
           }
         });
-      });
+      }
+
+      // Inicio
+      if (!localStorage.getItem('access')) {
+        window.location.href = '/login';
+      } else {
+        loadDataAndRender();
+      }
     </script>
   </body>
 </html>

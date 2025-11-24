@@ -1,27 +1,61 @@
 ---
-import { onMount } from 'astro/client';
-import Chart from 'chart.js/auto';
-
-const response = await fetch('https://visitas-empresa.onrender.com/api/visitas/');
-const data = await response.json();
+---
 
 <canvas id="visitsChart"></canvas>
 
-<script>
+<script type="module">
     import Chart from 'chart.js/auto';
 
-    onMount(() => {
-        const ctx = document.getElementById("visitsChart");
-        new Chart(ctx, {
-            type: "line",
-            data: {
-                labels: Astro.props.labels,
-                datasets: [{
-                    label: "Visitas",
-                    data: Astro.props.counts,
-                    borderWidth: 2
-                }]
-            }
+    const API_BASE = 'https://visitas-empresa.onrender.com';
+
+    function getTokens() {
+        return { access: localStorage.getItem('access'), refresh: localStorage.getItem('refresh') };
+    }
+
+    async function refreshAccess() {
+        const tokens = getTokens();
+        if (!tokens.refresh) return false;
+        const res = await fetch(`${API_BASE}/api/token/refresh/`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ refresh: tokens.refresh })
         });
-    });
+        if (!res.ok) return false;
+        const data = await res.json();
+        localStorage.setItem('access', data.access);
+        return true;
+    }
+
+    async function authFetch(url, opts = {}) {
+        const tokens = getTokens();
+        if (!tokens.access) return;
+        opts.headers = opts.headers || {};
+        opts.headers['Content-Type'] = opts.headers['Content-Type'] || 'application/json';
+        opts.headers['Authorization'] = `Bearer ${tokens.access}`;
+        let res = await fetch(url, opts);
+        if (res.status === 401) {
+            const refreshed = await refreshAccess();
+            if (!refreshed) { window.location.href = '/login'; return; }
+            opts.headers['Authorization'] = `Bearer ${localStorage.getItem('access')}`;
+            res = await fetch(url, opts);
+        }
+        return res;
+    }
+
+    (async function () {
+        if (!localStorage.getItem('access')) return window.location.href = '/login';
+        const res = await authFetch(`${API_BASE}/api/visitas/`);
+        if (!res || !res.ok) return;
+        const visitas = await res.json();
+        const fechas = {};
+        for (const v of visitas) {
+            const fecha = new Date(v.hora_entrada).toLocaleDateString();
+            fechas[fecha] = (fechas[fecha] || 0) + 1;
+        }
+        const labels = Object.keys(fechas);
+        const counts = Object.values(fechas);
+
+        const ctx = document.getElementById('visitsChart');
+        new Chart(ctx, { type: 'line', data: { labels, datasets: [{ label: 'Visitas', data: counts, borderWidth: 2 }] } });
+    })();
 </script>
